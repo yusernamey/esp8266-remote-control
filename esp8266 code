@@ -1,0 +1,130 @@
+#include <ESP8266WiFi.h>
+#include <WebSocketsServer.h>
+ 
+WiFiServer server(80);
+WebSocketsServer webSocket = WebSocketsServer(81);
+ 
+byte balkono_lubos = D1;
+byte balkono_spintele = D2;
+
+//Static IP address configuration
+IPAddress staticIP(192, 168, 8, 105); //ESP static
+IPAddress gateway(192, 168, 8, 1);   //IP Address of your WiFi Router (Gateway)
+IPAddress subnet(255, 255, 255, 0);  //Subnet mask
+IPAddress dns(192, 168, 8, 1);  //DNS
+char ssid[] = "HUAWEI-5672";  // use your own network ssid and password
+char pass[] = "85223044";
+ 
+void setup()
+{
+  pinMode(balkono_lubos, OUTPUT);
+  digitalWrite(balkono_lubos,LOW);
+  pinMode(balkono_spintele, OUTPUT);
+  digitalWrite(balkono_spintele,LOW);
+ 
+  Serial.begin(115200);
+  Serial.println();
+  Serial.println("Serial started at 115200");
+  Serial.println();
+ 
+  // Connect to a WiFi network
+  Serial.print(F("Connecting to "));  Serial.println(ssid);
+  WiFi.begin(ssid,pass);
+  
+  WiFi.disconnect();  //Prevent connecting to wifi based on previous configuration
+  
+  
+  WiFi.config(staticIP, subnet, gateway, dns);
+  WiFi.begin(ssid, pass);
+ 
+  WiFi.mode(WIFI_STA); //WiFi mode station (connect to wifi router only
+ 
+  // connection with timeout
+  int count = 0; 
+  while ( (WiFi.status() != WL_CONNECTED) && count < 17) 
+  {
+      Serial.print(".");  delay(500);  count++;
+  }
+ 
+  if (WiFi.status() != WL_CONNECTED)
+  { 
+     Serial.println("");  Serial.print("Failed to connect to ");  Serial.println(ssid);
+     while(1);
+  }
+ 
+  Serial.println("");
+  Serial.println(F("[CONNECTED]"));   Serial.print("[IP ");  Serial.print(WiFi.localIP()); 
+  Serial.println("]");
+ 
+  // start a server
+  server.begin();
+  Serial.println("Server started");
+ 
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
+}
+ 
+void loop()
+{
+    webSocket.loop();
+ 
+    WiFiClient client = server.available();     // Check if a client has connected
+    if (!client)  {  return;  }
+ 
+    client.flush(); 
+    Serial.println("New page served");
+ 
+    delay(5);
+}
+ 
+void webSocketEvent(byte num, WStype_t type, uint8_t * payload, size_t length)
+{
+  if(type == WStype_TEXT)
+  {
+      if (payload[0] == '0')
+      {
+          digitalWrite(balkono_lubos, LOW);
+          Serial.println("balkono_lubos=OFF"); 
+          webSocket.broadcastTXT("balkono_lubos=OFF");       
+      }
+      else if (payload[0] == '1')
+      {
+          digitalWrite(balkono_lubos, HIGH);
+          Serial.println("balkono_lubos=ON");    
+          webSocket.broadcastTXT("balkono_lubos=ON");    
+      } else if (payload[0] == '2')
+      {
+          digitalWrite(balkono_spintele, LOW);
+          Serial.println("balkono_spintele=OFF");    
+          webSocket.broadcastTXT("balkono_spintele=OFF");    
+      } else if (payload[0] == '3')
+      {
+          digitalWrite(balkono_spintele, HIGH);
+          Serial.println("balkono_spintele=ON");    
+          webSocket.broadcastTXT("balkono_spintele=ON");    
+      } else if (payload[0] == '4')
+      {
+          digitalWrite(balkono_lubos, LOW);
+          digitalWrite(balkono_spintele, LOW);
+          Serial.println("balkono_lubos=OFF"); 
+          Serial.println("balkono_spintele=OFF");  
+          webSocket.broadcastTXT("balkonas=OFF");    
+      } else if (payload[0] == '5')
+      {
+          digitalWrite(balkono_lubos, HIGH);
+          digitalWrite(balkono_spintele, HIGH);
+          Serial.println("balkono_lubos=ON"); 
+          Serial.println("balkono_spintele=ON");  
+          webSocket.broadcastTXT("balkonas=ON");    
+      }
+  }
+ 
+  else 
+  {
+    Serial.print("WStype = ");   Serial.println(type);  
+    Serial.print("WS payload = ");
+    for(int i = 0; i < length; i++) { Serial.print((char) payload[i]); }
+    Serial.println();
+ 
+  }
+}
